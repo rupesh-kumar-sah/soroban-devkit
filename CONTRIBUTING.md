@@ -58,6 +58,9 @@ make compat         # run compatibility CI matrix locally
    CodeRabbit re-reviews each push. CI and the maintainer review remain the
    final gates.
 
+   To skip a review on a specific PR, include `@coderabbitai ignore` in the
+   pull request description.
+
 ### Plugin Bundle Workflow
 
 To pack and verify a plugin bundle locally:
