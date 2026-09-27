@@ -8383,6 +8383,16 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
                 let salt_bytes = salt.as_deref().map(parse_salt_hex).transpose()?;
                 let config = load_config();
 
+                // Pre-validate all constructor arguments early (fail fast
+                // before identity/network resolution so a typo in ctor_args
+                // does not require a configured identity to surface).
+                for (alias, contract_cfg) in &config.contracts {
+                    let parsed = parse_typed_args(&contract_cfg.ctor_args, false)?;
+                    sdkt_xdr::parse_scval_args(&parsed).map_err(|e| {
+                        format!("Invalid constructor argument for '{}': {}", alias, e)
+                    })?;
+                }
+
                 // 4.1 — advisory lock check. If an `sdkt.lock` exists, warn
                 // (non-fatally) when it has drifted from the current artifacts.
                 // This never blocks deployment; it simply surfaces a stale-lock
@@ -8542,6 +8552,11 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             }
 
+                            // Parse and validate constructor arguments (fail fast on bad input before upload)
+                            let parsed_args = parse_typed_args(&contract.ctor_args, false)?;
+                            sdkt_xdr::parse_scval_args(&parsed_args)
+                                .map_err(|e| format!("Invalid constructor argument: {}", e))?;
+
                             if fmt != OutputFormat::Json {
                                 println!(
                                     "  Deploying alias '{}' from '{}'...",
@@ -8562,13 +8577,14 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             };
 
-                            match sdkt_rpc::deploy_contract(
+                            match sdkt_rpc::deploy_contract_with_args(
                                 &client,
                                 &wasm_bytes,
                                 &source_account,
                                 &signer,
                                 network.clone(),
                                 salt_bytes,
+                                parsed_args,
                             )
                             .await
                             {
